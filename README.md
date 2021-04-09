@@ -1,3 +1,3 @@
 # htype
 
-## To perform hierarchical clustering on cluster centroids of single-cell RNA-seq data
+## Hierarchical clustering on cluster centroids of single-cell RNA-seq data
