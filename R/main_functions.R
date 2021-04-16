@@ -21,19 +21,27 @@
 # 3. for each step (increments of k + 1), add cluster assignments to meta data. 
 # 4. returns Seurat object with phylo object in slot = "BuildClusterTree" and 
 #    with all clustering assignments stored in meta data. 
-recluster_all <- function(object, dims = NULL) {
+recluster_all <- function(object, ident = "seurat_clusters", dims = NULL) {
   time.start <- Sys.time()
   object.phylo <- Tool(object, slot = "BuildClusterTree")
   
-  if (is.null(VariableFeatures(object))) object <- FindVariableFeatures(object)
+  
+  orig_clusters <- object[[ident]][,1]
+  if (ident != "seurat_clusters") {
+    orig_clusters <- as.factor(orig_clusters-1)
+  } # temporary fix on cluster number indexing for SC3 results
+  
+  object <- AddMetaData(object, metadata = orig_clusters, col.name = "ident")
+  
+  if (length(VariableFeatures(object)) == 0) object <- FindVariableFeatures(object)
   if (is.null(object.phylo)) {
-    object <- BuildClusterTree(object, dims = dims, features = VariableFeatures(object))
+    object <- BuildClusterTree(object, dims = dims, features = VariableFeatures(object), )
     object.phylo <- Tool(object, slot = "BuildClusterTree")
   }
-
-  total_n_clusters <- max(as.numeric(levels(object$seurat_clusters)))+1
-  new_clusterings <- data.frame(row.names = levels(object$seurat_clusters))
   
+  total_n_clusters <- max(as.numeric(levels(orig_clusters)))+1
+  new_clusterings <- data.frame(row.names = levels(orig_clusters))
+
   print("slicing tree")
   for (n_clusters in 1:total_n_clusters) {
     new_clusterings[,n_clusters] <- cutree_nodes(object.phylo, k = n_clusters)
@@ -46,22 +54,22 @@ recluster_all <- function(object, dims = NULL) {
   for (step_n in 1:dim(new_clusterings)[2]) {
     # print(paste("setting meta data for step", step_n))
     new_clusters <- new_clusterings[,step_n]
-    names(new_clusters) <- levels(object$seurat_clusters)
+    names(new_clusters) <- levels(orig_clusters)
     new_clusters <- as.factor(new_clusters)
     levels(new_clusters) <- sort(unique(new_clusters))
 
-    for (cluster in levels(object$seurat_clusters)) {
-      cells.use <- colnames(object)[object$seurat_clusters == cluster]
+    for (cluster in levels(orig_clusters)) {
+      cells.use <- colnames(object)[orig_clusters == cluster]
       object <- SetIdent(object, cells = cells.use, value = new_clusters[cluster])
     }
     object <- AddMetaData(object, metadata = object@active.ident,
                           col.name = paste0("step_", step_n))
   }
-  
+
   all_clusters <- sort(unique(concat_steps(object)$cluster))
   internal_nodes_labels <- all_clusters[!all_clusters %in% object.phylo$tip.label]
   object@tools$BuildClusterTree$node.label <- internal_nodes_labels
-  
+
   time.end <- Sys.time()
   print(time.end-time.start)
   return(object)
