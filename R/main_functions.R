@@ -223,6 +223,53 @@ BuildClusterTree <- function(
   return(object)
 }
 
+# Function to automatically go through typical Seurat analysis pipeline
+Seurat_pipeline <- function(object, mito_filter = TRUE, filter = FALSE, 
+                            n_var_feat = 2000, scale = FALSE, center = TRUE,
+                            cluster_res = 0.8, nn_space = "pca", p_components = 20,
+                            tsne = TRUE, umap = TRUE, vis = "pca") {
+  require(Seurat)
+  
+  if (mito_filter) {
+    object[["percent.mt"]] <- PercentageFeatureSet(object, pattern = "^MT-")
+    object <- subset(object, subset = percent.mt < 5)
+    print("filtering out cells with high mitochondrial gene content")
+  } 
+  if (filter) {
+    object <- subset(object, subset = nFeature_RNA > 200 & nFeature_RNA < 2500)
+    print("filtering out cells with too low or high feature counts")
+  }
+  
+  object <- NormalizeData(object, normalization.method = "LogNormalize", scale.factor = 10000)
+  object <- FindVariableFeatures(object, selection.method = "vst", nfeatures = n_var_feat)
+  all.genes <- rownames(object)
+  object <- ScaleData(object, features = all.genes, do.scale = scale, do.center = center)
+  object <- RunPCA(object, features = VariableFeatures(object))
+  
+  if (nn_space == "pca") {
+    object <- FindNeighbors(object, dims = 1:p_components)
+    object <- FindClusters(object, resolution = cluster_res)
+  }
+  if (nn_space == "variable_features") {
+    object <- FindNeighbors(object, features = VariableFeatures(object))
+    object <- FindClusters(object, resolution = cluster_res)
+  }
+  
+  if (vis == "pca") {
+    if (umap) object <- RunUMAP(object, dims = 1:p_components)
+    if (tsne) object <- RunTSNE(object, dims = 1:p_components, check_duplicates = FALSE)
+  }
+  
+  if (vis == "variable_features") {
+    if (umap) object <- RunUMAP(object, features = VariableFeatures(object), 
+                                dims = NULL)
+    if (tsne) object <- RunTSNE(object, features = VariableFeatures(object), 
+                                dims = NULL, check_duplicates = FALSE)
+  }
+  
+  return(object)
+}
+
 # same as stats::cutree(), but returns node number instead. 
 cutree_nodes <- function(phylo_obj, k=NULL) {
   cut_output <- cutree(as.hclust(phylo_obj), k=k)
