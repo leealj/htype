@@ -13,7 +13,8 @@ BuildClusterTree <- function(
   reorder = FALSE,
   reorder.numeric = FALSE,
   verbose = TRUE,
-  dist.method = "euclidean"
+  dist.method = "euclidean",
+  linkage = "complete"
 ) {
   require(stats)
   require(utils)
@@ -112,7 +113,7 @@ BuildClusterTree <- function(
       data.dist <- as.dist(CorDist(t(data.avg), t(data.avg), method = "pearson"))
     }
   }
-  data.tree <- ape::as.phylo(x = hclust(d = data.dist))
+  data.tree <- ape::as.phylo(x = hclust(d = data.dist, method = linkage))
   Tool(object = object) <- data.tree
   if (reorder) {
     if (verbose) {

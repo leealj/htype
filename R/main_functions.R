@@ -42,7 +42,9 @@ recluster_all <- function(object, ident = "seurat_clusters",
   
   if (length(VariableFeatures(object)) == 0) object <- FindVariableFeatures(object)
   if (is.null(object.phylo)) {
-    object <- BuildClusterTree(object, dims = dims, features = VariableFeatures(object))
+    object <- BuildClusterTree(object, dims = dims, 
+                               features = VariableFeatures(object), 
+                               dist.method = dist.method)
     object.phylo <- Tool(object, slot = "BuildClusterTree")
   }
   
