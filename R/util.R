@@ -13,8 +13,8 @@ BuildClusterTree <- function(
   reorder = FALSE,
   reorder.numeric = FALSE,
   verbose = TRUE,
-  dist.method = "euclidean",
-  linkage = "complete"
+  dist.method = "correlation",
+  linkage = "average"
 ) {
   require(stats)
   require(utils)
@@ -113,8 +113,11 @@ BuildClusterTree <- function(
       data.dist <- as.dist(CorDist(t(data.avg), t(data.avg), method = "pearson"))
     }
   }
+  
   data.tree <- ape::as.phylo(x = hclust(d = data.dist, method = linkage))
   Tool(object = object) <- data.tree
+  object@tools$DistanceMatrix <- data.dist
+  
   if (reorder) {
     if (verbose) {
       message("Reordering identity classes and rebuilding tree")
@@ -141,6 +144,12 @@ BuildClusterTree <- function(
     )
   }
   return(object)
+}
+
+# Calculates correlation distance and returns a matrix. 
+CorDist <- function(points1, points2, method = "pearson") {
+  output <- 1-(cor(t(points1), t(points2), method = method))
+  return(output)
 }
 
 # Function to automatically go through typical Seurat analysis pipeline

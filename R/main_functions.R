@@ -18,6 +18,12 @@
 # - Modified BuildClusterTree from Seurat to be able to use correlation distance
 #   to calculate distance between centroids.
 # - Separated some functions to util.R and vis.R
+#
+# May 2021:
+# - Modified recluster_all and BuildClusterTree to take distance method and linkage 
+#   method parameters; default = correlation distance with average linkage
+# - Added option to choose best combination of distance and linkage methods based on 
+#   cophenetic correlation.
 ################################################################
 ################################################################
 
@@ -27,8 +33,11 @@
 # 3. for each step (increments of k + 1), add cluster assignments to meta data. 
 # 4. returns Seurat object with phylo object in slot = "BuildClusterTree" and 
 #    with all clustering assignments stored in meta data. 
-recluster_all <- function(object, ident = "seurat_clusters", 
-                          dims = NULL, dist.method = "euclidean") {
+recluster_all <- function(object, 
+                          ident = "seurat_clusters", 
+                          dims = NULL, 
+                          dist.method = "correlation", 
+                          linkage = "average") {
   time.start <- Sys.time()
   object.phylo <- Tool(object, slot = "BuildClusterTree")
   
@@ -44,7 +53,7 @@ recluster_all <- function(object, ident = "seurat_clusters",
   if (is.null(object.phylo)) {
     object <- BuildClusterTree(object, dims = dims, 
                                features = VariableFeatures(object), 
-                               dist.method = dist.method)
+                               dist.method = dist.method, linkage = linkage)
     object.phylo <- Tool(object, slot = "BuildClusterTree")
   }
   
