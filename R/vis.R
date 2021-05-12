@@ -25,6 +25,8 @@ cut_dimplots <- function(object, label.size = 6) {
 # Output is a list of ggplot objects. 
 feature_phylo <- function(sig_cells_output, values = "mean", 
                           cap = 1e-50, title = NULL, subtitle = NULL) {
+  require(ggtree)
+  
   phylo <- sig_cells_output$phylo
   scan_output <- sig_cells_output$scan_output
   marker_genes <- scan_output[5:length(scan_output)]
@@ -37,24 +39,24 @@ feature_phylo <- function(sig_cells_output, values = "mean",
     
     if (values == "pval") {
       if (!is.null(cap)) {node_info$score[node_info$score < cap] <- cap}
-      base_tree <- ggtree::ggtree(phylo, aes(color = -log10(score)), 
+      base_tree <- ggtree(phylo, aes(color = -log10(score)), 
                                   size = edge_thickness)
-      base_tree <- ggtree::"%<+%"(base_tree, node_info)
+      base_tree <- "%<+%"(base_tree, node_info)
       subtitle_final <- paste("Cluster -log10(pval) for", target.name, 
                               "\n p-value capped at", cap, "for plotting")
     }
     
     if (values == "mean") {
-      base_tree <- ggtree::ggtree(phylo, aes(color = avg_expr), size = edge_thickness)
-      base_tree <- ggtree::"%<+%"(base_tree, node_info)
+      base_tree <- ggtree(phylo, aes(color = avg_expr), size = edge_thickness)
+      base_tree <- "%<+%"(base_tree, node_info)
       subtitle_final <- paste("Average", target.name, "expression per cluster")
     }
     
     if (is.null(title)) {title <- sig_cells_output$project.name} else {title <- title}
     
     final_tree <- base_tree +
-      ggtree::geom_nodelab(geom = "label") +
-      ggtree::geom_tiplab(geom = "text") +
+      geom_nodelab(geom = "label") +
+      geom_tiplab(geom = "text") +
       ggplot2::scale_color_gradient(low="grey", high="blue") +
       ggplot2::ggtitle(label = title, subtitle = subtitle_final)
     
