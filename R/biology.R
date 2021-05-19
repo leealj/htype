@@ -100,8 +100,9 @@ gsea_nodes <- function(object, pathways, ident.1, ident.2) {
     ident = paste(ident.2, collapse = "_")
     labels = levels(object@active.ident)
     labels[labels %in% ident.2] <- ident
+    levels(object@active.ident) = labels
   } else {
-    ident <- ident.2
+    ident = ident.2
   }
   
   object <- AddMetaData(object, metadata = object@active.ident, col.name = "selection")
