@@ -23,7 +23,7 @@
 # - Modified recluster_all and BuildClusterTree to take distance method and linkage 
 #   method parameters; default = correlation distance with average linkage
 # - Added option to choose best combination of distance and linkage methods based on 
-#   cophenetic correlation.
+#   cophenetic correlation. (not yet implemented as of 05-24-2021)
 ################################################################
 ################################################################
 
@@ -43,9 +43,9 @@ recluster_all <- function(object,
   
   
   orig_clusters <- object[[ident]][,1]
-  if (ident != "seurat_clusters") {
-    orig_clusters <- as.factor(orig_clusters-1)
-  } # temporary fix on cluster number indexing for SC3 results
+  # if (ident != "seurat_clusters") {
+  #   orig_clusters <- as.factor(orig_clusters-1)
+  # } # temporary fix on cluster number indexing for SC3 results
   
   object <- AddMetaData(object, metadata = orig_clusters, col.name = "ident")
   
@@ -90,6 +90,7 @@ recluster_all <- function(object,
 
   time.end <- Sys.time()
   print(time.end-time.start)
+
   return(object)
 }
 ################################################################
