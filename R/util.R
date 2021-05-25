@@ -146,6 +146,85 @@ BuildClusterTree <- function(
   return(object)
 }
 
+# This is to be re-named to BaseClust after preliminary tests
+BuildClusterTree <- function(object, space = "pca", dims = 50, 
+                      distance = "euclidean", linkage = "average") {
+  time.start <- Sys.time()
+  if (space == "pca") {
+    d <- dist(object@reductions$pca@cell.embeddings[,1:dims], method = distance)
+  } else if (space == "umap") {
+    d <- dist(object@reductions$umap@cell.embeddings, method = distance)
+  } else if (space == "variable_features") {
+    m = GetAssayData(object, slot = "data")
+    d <- dist(t(as.matrix(m[VariableFeatures(object),])), method = distance)
+  }
+  
+  tree <- hclust(d = d, method = linkage)
+  
+  time.end <- Sys.time()
+  runtime <- time.end - time.start
+  print(runtime)
+  
+  Tool(object) <- tree
+  object@tools$DistanceMatrix <- d
+  object@tools$hclust_runtime <- runtime
+  
+  return(object)
+}
+
+# try to manually merge nodes 8 and 9
+test = tree
+# name new branch "8"
+new.lab = test$labels[!(test$labels==9)]
+new.order = test$order[!(test$labels==9)]
+
+test$labels = new.lab
+test$order = new.order
+m = test$merge[-5,]
+m[6,2] = -17 # originally at row 7, but now 6 because 5 was removed.
+m[m > 5] <- m[m > 5] -length(5)
+test$merge = m
+test$height = test$height[-5]
+
+
+# subtree function in progress
+subtree <- function(tree, h = NULL , k = NULL) {
+  cut = cutree(tree, h = h, k = k)
+  branches.to.make = names(table(cut))[table(cut) > 1]
+  
+  # for each branch to make
+  for (i in branches.to.make) {
+    print(i)
+    labels.to.combine = cut == as.numeric(i) # i.e. node 8 and 9
+    branch.name = min(as.numeric(tree$labels[labels.to.combine]))
+    indices = tree$order[labels.to.combine]
+
+    dim1 = dim(tree$merge)[1]
+    boolmat = matrix(tree$merge %in% -indices, nrow = dim1, ncol = 2)
+    merge.rows = which(rowSums(boolmat) > 0)
+    to.remove = merge.rows
+    
+    # Climb tree from bottom to top of branch 
+    # identify indices of all merges
+    while (length(merge.rows) > 1) {
+      to.remove = append(to.remove, values = merge.rows, after = length(to.remove))
+      boolmat = matrix(tree$merge %in% merge.rows, nrow = dim1, ncol = 2)
+      merge.rows = which(rowSums(boolmat) > 0)
+    }
+
+    new.label = min(as.numeric(names(cut)[labels.to.combine]))
+    keep.labels = as.logical((names(cut) == new.label) + !labels.to.combine)
+
+    print(merge.rows)
+    new.height = max(tree$height[merge.rows])
+    tree$merge = tree$merge[-to.remove,]
+    tree$height = tree$height[-to.remove]
+    tree$labels = tree$labels[keep.labels]
+    tree$order = tree$order[!(tree$order %in% names(cut)[keep.labels])]
+  }
+  return(tree)
+}
+
 # Calculates correlation distance and returns a matrix. 
 CorDist <- function(points1, points2, method = "pearson") {
   output <- 1-(cor(t(points1), t(points2), method = method))
@@ -211,20 +290,24 @@ cutree_nodes <- function(phylo_obj, k=NULL) {
     }
     tmp[[group]] <- Reduce(intersect, all_orig_parents)
   }
-  unique_identities <- unique(unlist(tmp))
-  tally <- c()
-  for (id in unique_identities) {
-    tally[as.character(id)] <- sum(unlist(tmp) == id)
-  }
-  node_ids <- names(tally)[tally==1]
+  tally <- table(unlist(tmp))
+  node_ids <- names(tally)[tally==1] # identify all tips
+  
   output <- cut_output
   for (orig_group in unique(cut_output)) {
     output[cut_output==orig_group] <- as.numeric(node_ids[orig_group])
   }
-  return(output)
+
+  ts <- list()
+  ts[["cut_output"]] <- cut_output
+  ts[["tally"]] <- tally
+  ts[["node_ids"]] <- node_ids
+  ts[["tmp"]] <- tmp
+  return(ts)
+  # return(output)
 }
 
-# Use (cluster/node number + 1) as a numeric to determine all parent clusters
+# Use (node number + 1) as a numeric to determine all parent clusters
 # minus one from all of the outputs to get the proper cluster/node numbers.
 GetParents <- function(tree, node) {
   output <- c(node)
