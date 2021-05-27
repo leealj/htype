@@ -165,65 +165,44 @@ BuildClusterTree <- function(object, space = "pca", dims = 50,
   runtime <- time.end - time.start
   print(runtime)
   
-  Tool(object) <- tree
+  Tool(object) <- ape::as.phylo(tree)
   object@tools$DistanceMatrix <- d
   object@tools$hclust_runtime <- runtime
   
   return(object)
 }
 
-# try to manually merge nodes 8 and 9
-test = tree
-# name new branch "8"
-new.lab = test$labels[!(test$labels==9)]
-new.order = test$order[!(test$labels==9)]
-
-test$labels = new.lab
-test$order = new.order
-m = test$merge[-5,]
-m[6,2] = -17 # originally at row 7, but now 6 because 5 was removed.
-m[m > 5] <- m[m > 5] -length(5)
-test$merge = m
-test$height = test$height[-5]
-
-
-# subtree function in progress
-subtree <- function(tree, h = NULL , k = NULL) {
-  cut = cutree(tree, h = h, k = k)
-  branches.to.make = names(table(cut))[table(cut) > 1]
+# New subtree function based on ape::drop.tip()
+subtree <- function(object, h = NULL, k = NULL) {
   
-  # for each branch to make
-  for (i in branches.to.make) {
-    print(i)
-    labels.to.combine = cut == as.numeric(i) # i.e. node 8 and 9
-    branch.name = min(as.numeric(tree$labels[labels.to.combine]))
-    indices = tree$order[labels.to.combine]
-
-    dim1 = dim(tree$merge)[1]
-    boolmat = matrix(tree$merge %in% -indices, nrow = dim1, ncol = 2)
-    merge.rows = which(rowSums(boolmat) > 0)
-    to.remove = merge.rows
-    
-    # Climb tree from bottom to top of branch 
-    # identify indices of all merges
-    while (length(merge.rows) > 1) {
-      to.remove = append(to.remove, values = merge.rows, after = length(to.remove))
-      boolmat = matrix(tree$merge %in% merge.rows, nrow = dim1, ncol = 2)
-      merge.rows = which(rowSums(boolmat) > 0)
-    }
-
-    new.label = min(as.numeric(names(cut)[labels.to.combine]))
-    keep.labels = as.logical((names(cut) == new.label) + !labels.to.combine)
-
-    print(merge.rows)
-    new.height = max(tree$height[merge.rows])
-    tree$merge = tree$merge[-to.remove,]
-    tree$height = tree$height[-to.remove]
-    tree$labels = tree$labels[keep.labels]
-    tree$order = tree$order[!(tree$order %in% names(cut)[keep.labels])]
+  phy = Tool(object, slot = "BuildClusterTree")
+  
+  order = data.frame(row.names = 1:length(phy$tip.label))
+  order[,"order"] <- 1:length(phy$tip.label)
+  order[,"label"] <- as.character(phy$tip.label)
+  
+  tree = ape::as.hclust.phylo(phy)
+  cut = cutree(tree, h = h, k = k)
+  new_groups = names(table(cut))[table(cut) > 1]
+  
+  remove_tips = c()
+  
+  for (g in new_groups) {
+    nodes_in_group = names(cut)[cut == g] 
+    to_remove = order$order[order$label %in% nodes_in_group[-1]]
+    remove_tips <- append(remove_tips, values = to_remove, after = length(remove_tips))
   }
-  return(tree)
+  
+  choppedtree = ape::drop.tip(phy, tip = remove_tips)
+  
+  factoredcut = as.factor(cut)
+  choppedtree$tip.label <- levels(factoredcut)
+  object <- AddMetaData(object, metadata = factoredcut, col.name = "hclust_subtree")
+  object@tools$BuildClusterTree <- choppedtree
+
+  return(object)
 }
+
 
 # Calculates correlation distance and returns a matrix. 
 CorDist <- function(points1, points2, method = "pearson") {
@@ -290,21 +269,24 @@ cutree_nodes <- function(phylo_obj, k=NULL) {
     }
     tmp[[group]] <- Reduce(intersect, all_orig_parents)
   }
-  tally <- table(unlist(tmp))
-  node_ids <- names(tally)[tally==1] # identify all tips
+  # tally <- table(unlist(tmp))
+  # node_ids <- names(tally)[tally==1] # identify all tips
+  
+  
+  unique_identities <- unique(unlist(tmp))
+  tally <- c()
+  for (id in unique_identities) {
+    tally[as.character(id)] <- sum(unlist(tmp) == id)
+  }
+  node_ids <- names(tally)[tally==1]
+  
+  
   
   output <- cut_output
   for (orig_group in unique(cut_output)) {
     output[cut_output==orig_group] <- as.numeric(node_ids[orig_group])
   }
-
-  ts <- list()
-  ts[["cut_output"]] <- cut_output
-  ts[["tally"]] <- tally
-  ts[["node_ids"]] <- node_ids
-  ts[["tmp"]] <- tmp
-  return(ts)
-  # return(output)
+  return(output)
 }
 
 # Use (node number + 1) as a numeric to determine all parent clusters
