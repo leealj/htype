@@ -173,7 +173,19 @@ BuildClusterTree <- function(object, space = "pca", dims = 50,
 }
 
 # New subtree function based on ape::drop.tip()
-subtree <- function(object, h = NULL, k = NULL) {
+subtree <- function(object, h = NULL, k = NULL, min.cluster.size) {
+  
+  cutree_v2 <- function(tree, h = NULL, k = NULL, min.cluster.size) {
+    labels <- cutree(as.hclust(tree), h = h, k = k)
+    labelcounts <- table(labels)
+    keep_clusters <- names(labelcounts[labelcounts >= min.cluster.size])
+    
+    labels[!(labels %in% as.numeric(keep_clusters))] <- 0
+    
+    labels = as.factor(labels)
+    levels(labels) <- (1:length(levels(labels)))-1
+    return(labels)
+  }
   
   phy = Tool(object, slot = "BuildClusterTree")
   
@@ -182,7 +194,7 @@ subtree <- function(object, h = NULL, k = NULL) {
   order[,"label"] <- as.character(phy$tip.label)
   
   tree = ape::as.hclust.phylo(phy)
-  cut = cutree(tree, h = h, k = k)
+  cut = cutree_v2(tree, h = h, k = k, min.cluster.size = min.cluster.size)
   new_groups = names(table(cut))[table(cut) > 1]
   
   remove_tips = c()
@@ -198,6 +210,13 @@ subtree <- function(object, h = NULL, k = NULL) {
   factoredcut = as.factor(cut)
   choppedtree$tip.label <- levels(factoredcut)
   object <- AddMetaData(object, metadata = factoredcut, col.name = "hclust_subtree")
+  
+  
+  tips = as.numeric(choppedtree$tip.label)+1
+  trim_tips = choppedtree$edge[,2] %in% as.character(tips)
+  longedges = choppedtree$edge.length[trim_tips]
+  choppedtree$edge.length[trim_tips] <- longedges-(min(longedges)-0.5)
+  
   object@tools$BuildClusterTree <- choppedtree
 
   return(object)
@@ -269,9 +288,6 @@ cutree_nodes <- function(phylo_obj, k=NULL) {
     }
     tmp[[group]] <- Reduce(intersect, all_orig_parents)
   }
-  # tally <- table(unlist(tmp))
-  # node_ids <- names(tally)[tally==1] # identify all tips
-  
   
   unique_identities <- unique(unlist(tmp))
   tally <- c()
@@ -279,8 +295,6 @@ cutree_nodes <- function(phylo_obj, k=NULL) {
     tally[as.character(id)] <- sum(unlist(tmp) == id)
   }
   node_ids <- names(tally)[tally==1]
-  
-  
   
   output <- cut_output
   for (orig_group in unique(cut_output)) {
